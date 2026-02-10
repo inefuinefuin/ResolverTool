@@ -50,7 +50,7 @@ concept _Var_Ty = std::same_as<__Type,int>||std::same_as<__Type,double>||
 using var_tys = Variant<int, double, String, bool>;
 
 struct Node {
-    // affix _i / _vi to show type/ array append to mulit-dict
+    // affix [sign]type to show type/ append to mulit-dict
     HMap<String, var_tys> mulitdict;
     // table to renode
     HMap<String, IntelliPtr<Node>> recnode;
@@ -241,14 +241,15 @@ Vec<String> SplitePath(String raw,char gp,char ty){
    return v;
 }
 
+// abs path ret
 template<__Node_Parse_Ty T>
 Option<T> _node_Parse_Abs(Node& node, String path,char gp,char ty){
     auto intable = [](Node& node,String& s,bool tail)->size_t{
         auto it = node.mulitdict.find(s);
-        if(it==node.mulitdict.end()) goto Recusion_lab;
+        if(it==node.mulitdict.end()) goto node_lab;
         return 0x01;
 
-        Recusion_lab:
+        node_lab:
         auto it_ = node.recnode.find(s);
         if(it_==node.recnode.end()) return 0x00;
         if(tail) return 0x01;
@@ -275,7 +276,7 @@ struct Resolver {
     Resolver(const char* f): _N(f), State(IntelliPtr<lua_State>(luaL_newstate())) {
         auto _luaL = State.Raw();
 
-        luaL_openlibs(_luaL);
+        // luaL_openlibs(_luaL);
         // state +1(root)
         auto ok = luaL_dofile(_luaL,f);
         if(ok!=LUA_OK || !lua_istable(_luaL,1)){
@@ -320,3 +321,4 @@ private:
     IntelliPtr<Node> root;
     char sign[2] = {'>','#'};
 };
+
