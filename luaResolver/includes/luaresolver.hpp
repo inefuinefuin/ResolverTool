@@ -57,7 +57,7 @@ struct Node {
     HMap<key_tys, IntelliPtr<Node>> recnode;
 
     template<_Var_Ty T>
-    Option<T> get(const char* key) const {
+    Option<T> get(auto key) const {
         auto it = mulitdict.find(key);
         if(it==mulitdict.end()) return std::nullopt;
         return std::get<T>(it->second);
@@ -87,7 +87,7 @@ struct rCursor {
     }
 
     template<_Var_Ty T>
-    Option<T> as(const char* c) const {
+    Option<T> as(auto c) const {
         return rt->get<T>(c);
     }
 
@@ -126,7 +126,7 @@ struct sCursor {
     
     
     template<_Var_Ty T>
-    Option<T> as(const char* c) {
+    Option<T> as(auto c) {
         Node* incur = trptr;
         trptr = bsptr;
         return incur->get<T>(c);
@@ -174,7 +174,7 @@ struct RWNode{
     }
 
     template<_Var_Ty T>
-    Option<T> as(const char* c) {
+    Option<T> as(auto c) {
         Node* incur = cur; 
         cur = rt.Raw();
         return incur->get<T>(c);
@@ -276,12 +276,13 @@ struct Resolver {
     }
     
     RWNode& node(auto c) { return rt.node(c); }
-
+    RWNode& reset() { return rt.reset(); }
+    
     rCursor root() { return rt.root(); }
     sCursor state() { return rt.state(); }
 
     template<_Var_Ty T>
-    Option<T> as(const char* c) { return rt.as<T>(c); }
+    Option<T> as(auto c) { return rt.as<T>(c); }
 
     ~Resolver(){}
 private:
@@ -294,12 +295,14 @@ private:
 // root -> state -> default
 void testfunc() {
     auto r = Resolver("config.lua");
+    
     RWNode& mid = r.node("config").node("app");
     auto mid2 = r.root().node("config").node("servers").node(1).as<String>("host");
     std::cout<<*mid2<<std::endl;
     std::cout<<*mid.as<String>("name")<<std::endl;
 
     auto state = r.node("config").node("app").state();
+    r.reset();
 
     std::cout<<*state.node("nested").as<int>("a")<<std::endl;
     state.node("list_of_maps").update();
@@ -307,7 +310,8 @@ void testfunc() {
     state.cancel();
 
     std::cout<<*state.node("nested").node("b").as<String>("s") << std::endl;
-    //state.recover();
-    //std::cout<<*r.node("config").as<String>("name")<<std::endl;
-
+    state.recover();
+    
+    std::cout<<*r.node("config").as<String>("name")<<std::endl;
+    std::cout<<*r.node(1).as<int>(1)<<std::endl;
 }
