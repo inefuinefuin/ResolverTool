@@ -49,8 +49,6 @@ using Option = std::optional<__Type>;
 // unique-ptr
 template<typename __Type>
 struct IntelliPtr{
-    __Type* rawptr = nullptr;
-
     template<typename... Args>
         requires std::is_constructible_v<__Type, Args...>
     IntelliPtr(Args&&... args) : rawptr(new __Type{std::forward<Args>(args)...}){}
@@ -71,13 +69,13 @@ struct IntelliPtr{
     ~IntelliPtr(){
         delete rawptr;
     }
+private:
+    __Type* rawptr = nullptr;
 };
 
 template<typename __Type, int N>
     requires (!std::same_as<__Type,void>)
-struct IntelliPtr<__Type[N]> {
-    __Type* rawptr = nullptr;
-    
+struct IntelliPtr<__Type[N]> {    
     template<typename... Args>
         requires std::is_constructible_v<__Type,Args...>
     IntelliPtr(Args&&... args): rawptr(new __Type[N]{std::forward<Args>(args)...}) {}
@@ -97,12 +95,12 @@ struct IntelliPtr<__Type[N]> {
     ~IntelliPtr(){
         delete[] rawptr;
     }
+private:
+    __Type* rawptr = nullptr;
 };
 
 template<>
 struct IntelliPtr<void>{
-    void* rawptr = nullptr;
-
     IntelliPtr() = default;
 
     explicit IntelliPtr(void* v) : rawptr(v) {}
@@ -122,4 +120,6 @@ struct IntelliPtr<void>{
     ~IntelliPtr(){
         delete rawptr;
     }
+private:
+    void* rawptr = nullptr;
 };
