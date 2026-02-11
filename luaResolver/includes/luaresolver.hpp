@@ -244,8 +244,9 @@ private:
 void testfunc() {
     auto r = Resolver("config.lua");
     RWNode& mid = r.node("config").node("app");
-    auto mid2 = r.root().node("config").node("servers").node("1i").as<String>("host");
+    auto mid2 = r.root().node("config").node("servers").node("1#i").as<String>("host");
     std::cout<<*mid2<<std::endl;
 
     std::cout<<*mid.as<String>("name")<<std::endl;
+
 }
