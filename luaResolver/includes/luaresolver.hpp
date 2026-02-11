@@ -48,13 +48,16 @@ private:
 template<typename __Type>
 concept _Var_Ty = std::same_as<__Type,int>||std::same_as<__Type,double>||
 				std::same_as<__Type,String>||std::same_as<__Type,bool>;
+template<typename __Type>
+concept _Key_Ty = std::same_as<__Type,int>||std::same_as<__Type,String>;
 using var_tys = Variant<int, double, String, bool>;
+using key_tys = Variant<String,int>;
 struct Node {    
-    HMap<String, var_tys> mulitdict;
-    HMap<String, IntelliPtr<Node>> recnode;
+    HMap<key_tys, var_tys> mulitdict;
+    HMap<key_tys, IntelliPtr<Node>> recnode;
 
     template<_Var_Ty T>
-    Option<T> get(const char* key){
+    Option<T> get(const char* key) const {
         auto it = mulitdict.find(key);
         if(it==mulitdict.end()) return std::nullopt;
         return std::get<T>(it->second);
@@ -62,11 +65,114 @@ struct Node {
 };
 
 
+
+struct rCursor {
+    rCursor(const rCursor&) = delete;
+    rCursor& operator=(const rCursor&) = delete;
+    rCursor(rCursor&& s): rt(s.rt) { s.rt = nullptr; }
+    rCursor& operator=(rCursor&& s) noexcept {
+        if(this==&s) return *this;
+        rt = s.rt;
+        s.rt = nullptr;
+        return *this; 
+    }
+
+    rCursor& node(const char* c){
+        auto it = rt->recnode.find(c);
+        if(it==rt->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        rt = it->second.Raw();
+        return *this;
+    }
+
+    rCursor& node(int c){
+        auto it = rt->recnode.find(c);
+        if(it==rt->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        rt = it->second.Raw();
+        return *this;
+    }
+    
+    template<_Var_Ty T>
+    Option<T> as(const char* c) const {
+        return rt->get<T>(c);
+    }
+
+    rCursor(Node* r): rt(r) {}
+private:
+    Node* rt;
+};
+
+struct sCursor {
+    sCursor(const sCursor&) = delete;
+    sCursor& operator=(const sCursor&) = delete;
+    sCursor(sCursor&& s): bsptr(s.bsptr), trptr(s.trptr), history(s.history) { 
+        s.bsptr = nullptr; 
+        s.trptr = nullptr;
+        s.history = nullptr; 
+    }
+    sCursor& operator=(sCursor&& s) noexcept {
+        if(this==&s) return *this;
+        bsptr = s.bsptr; 
+        trptr = s.trptr;
+        history = s.history;
+        s.bsptr = nullptr; 
+        s.trptr = nullptr;
+        s.history = nullptr;
+        return *this; 
+    }
+    
+    sCursor& node(String c) {
+        auto it = trptr->recnode.find(c);
+        if(it==trptr->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        trptr = it->second.Raw();
+        return *this;
+    }
+
+    sCursor& node(int c) {
+        auto it = trptr->recnode.find(c);
+        if(it==trptr->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        trptr = it->second.Raw();
+        return *this;
+    }
+    
+    
+    template<_Var_Ty T>
+    Option<T> as(const char* c) {
+        Node* incur = trptr;
+        trptr = bsptr;
+        return incur->get<T>(c);
+    }
+
+    sCursor& recover() { trptr = bsptr; return *this; }
+    sCursor& update() { history = bsptr; bsptr = trptr; return *this; }
+    sCursor& cancel() { 
+        bsptr = history;
+        trptr = history; 
+        history = nullptr; 
+        return *this;
+    }
+
+
+    sCursor(Node* b): bsptr(b), trptr(b) {}
+private:
+    Node* history;
+    Node* bsptr; 
+    Node* trptr; 
+};
+
 struct RWNode{
     RWNode() = default;
     RWNode(const RWNode&) = delete;
     RWNode& operator=(const RWNode&) = delete;
-    RWNode(RWNode&& n): rt(std::move(n.rt)),cur(n.cur) {}
+
+    RWNode(RWNode&& n): rt(std::move(n.rt)), cur(n.cur) {}
     RWNode& operator=(RWNode&& n) noexcept {
         if(this==&n) return *this;
         rt = std::move(n.rt);
@@ -74,60 +180,52 @@ struct RWNode{
         return *this;
     }
 
-    Node& Ref() {
-        return rt.RefRaw();
-    }
+    Node& Ref() { return rt.RefRaw(); }
 
     RWNode& node(const char* c) {
-        auto incur = isrt ? rcur : cur;
-        auto it = incur->recnode.find(c);
-        if(it==incur->recnode.end()) {
-            String err = "Error Node : " + String(c) + " Invalid Node";
-            throw std::runtime_error(err);
+        auto it = cur->recnode.find(c);
+        if(it==cur->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
         }
-        if (isrt) { rcur = it->second.Raw(); }
-        else { cur = it->second.Raw(); }
+        cur = it->second.Raw();
+        return *this;
+    }
+
+    RWNode& node(int c){
+        auto it = cur->recnode.find(c);
+        if(it==cur->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        cur = it->second.Raw();
         return *this;
     }
 
     template<_Var_Ty T>
-    Option<T> as(const char* c){
-        auto incur = isrt ? rcur : cur;
-        if(isrt){ 
-            isrt = false;
-            rcur = rt.Raw();
-        }
+    Option<T> as(const char* c) {
+        Node* incur = cur; 
+        cur = rt.Raw();
         return incur->get<T>(c);
     }
 
-    RWNode& reset() {
-        cur = rt.Raw();
-        return *this;
-    }
-    RWNode& root() {
-        isrt = true;
-        rcur = rt.Raw();
-        return *this;
-    }
+    rCursor root() { return rCursor(rt.Raw()); }
+    sCursor state() { return sCursor(cur); }
+
+    RWNode& reset() { cur = rt.Raw(); return *this; }
+
 private:
     IntelliPtr<Node> rt;
     Node* cur = rt.Raw();
-    bool isrt = false;
-    Node* rcur = nullptr;
 };
 
 
 void _lua_Parse(lua_State* _luaL,Node& node) {
-    int offset = -1;
+    int offset = lua_gettop(_luaL);
     lua_pushnil(_luaL);
-    offset--;
     while(lua_next(_luaL,offset)){
-        offset--;
-        
-        var_tys c; int idx = 0; String _cat;
+
+        var_tys c; key_tys _cat;
         if(lua_isinteger(_luaL,-2)){
-            idx = (int)lua_tointeger(_luaL,-2);
-            _cat = std::to_string(idx)+"#i";
+            _cat = (int)lua_tointeger(_luaL,-2);
 
             if(lua_isinteger(_luaL,-1)){
                 c = (int)lua_tointeger(_luaL,-1);
@@ -142,7 +240,8 @@ void _lua_Parse(lua_State* _luaL,Node& node) {
                 c = String(lua_tostring(_luaL,-1));
                 node.mulitdict.insert({_cat,c});
             }else if(lua_istable(_luaL,-1)){
-                goto Recusion_lab;
+                node.recnode.insert({_cat,IntelliPtr<Node>()});
+                _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
             }else{
                 throw std::runtime_error("Type Error");
             }
@@ -163,7 +262,8 @@ void _lua_Parse(lua_State* _luaL,Node& node) {
                 c = String(lua_tostring(_luaL,-1));
                 node.mulitdict.insert({_cat,c});
             }else if(lua_istable(_luaL,-1)){
-                goto Recusion_lab;
+                node.recnode.insert({_cat,IntelliPtr<Node>()});
+                _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
             }else {
                 throw std::runtime_error("Type Error");
             }
@@ -173,21 +273,6 @@ void _lua_Parse(lua_State* _luaL,Node& node) {
         }
 
         lua_pop(_luaL,1);
-        offset++;
-        continue;
-        
-        Recusion_lab:
-        if(idx!=0){
-            node.recnode.insert({_cat,IntelliPtr<Node>()});
-            _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
-        }else if(_cat!=""){
-            node.recnode.insert({_cat,IntelliPtr<Node>()});
-            _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
-        }else{
-            throw std::runtime_error("Type Error");
-        }
-        lua_pop(_luaL,1);
-        offset++;
     }
 }
 
@@ -199,8 +284,8 @@ struct Resolver {
     Resolver(const char* f): _N(f) { 
         IntelliPtr<lua_State> State(luaL_newstate());
         auto _luaL = State.Raw();
-        
         auto ok = luaL_dofile(_luaL,f);
+
         if(ok!=LUA_OK || !lua_istable(_luaL,1)){
             throw std::runtime_error("Format Error");
         }else{
@@ -216,23 +301,15 @@ struct Resolver {
         rt = std::move(r.rt);
         return *this;
     }
+    
+    RWNode& node(const char* c) { return rt.node(c); }
+    RWNode& node(int c) { return rt.node(c); }
 
-    RWNode& node(const char* c){
-        return rt.node(c);
-    }
+    rCursor root() { return rt.root(); }
+    sCursor state() { return rt.state(); }
 
     template<_Var_Ty T>
-    Option<T> as(const char* c) {
-        return rt.as<T>(c);
-    }
-
-    RWNode& reset() {
-        return rt.reset();
-    }
-
-    RWNode& root(){
-        return rt.root();
-    }
+    Option<T> as(const char* c) { return rt.as<T>(c); }
 
     ~Resolver(){}
 private:
@@ -241,12 +318,24 @@ private:
 };
 
 
+
+// root -> state -> default
 void testfunc() {
     auto r = Resolver("config.lua");
     RWNode& mid = r.node("config").node("app");
-    auto mid2 = r.root().node("config").node("servers").node("1#i").as<String>("host");
+    auto mid2 = r.root().node("config").node("servers").node(1).as<String>("host");
     std::cout<<*mid2<<std::endl;
-
     std::cout<<*mid.as<String>("name")<<std::endl;
+
+    auto state = r.node("config").node("app").state();
+
+    std::cout<<*state.node("nested").as<int>("a")<<std::endl;
+    state.node("list_of_maps").update();
+    std::cout<<*state.node(1).as<String>("name")<<":"<<*state.node(2).as<String>("name")<<std::endl;
+    state.cancel();
+
+    std::cout<<*state.node("nested").node("b").as<String>("s") << std::endl;
+    //state.recover();
+    //std::cout<<*r.node("config").as<String>("name")<<std::endl;
 
 }
