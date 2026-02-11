@@ -76,25 +76,16 @@ struct rCursor {
         s.rt = nullptr;
         return *this; 
     }
-
-    rCursor& node(const char* c){
-        auto it = rt->recnode.find(c);
-        if(it==rt->recnode.end()) {
-            throw std::runtime_error("Invalid Node");
-        }
-        rt = it->second.Raw();
-        return *this;
-    }
-
-    rCursor& node(int c){
-        auto it = rt->recnode.find(c);
-        if(it==rt->recnode.end()) {
-            throw std::runtime_error("Invalid Node");
-        }
-        rt = it->second.Raw();
-        return *this;
-    }
     
+    rCursor& node(auto c){
+        auto it = rt->recnode.find(c);
+        if(it==rt->recnode.end()) {
+            throw std::runtime_error("Invalid Node");
+        }
+        rt = it->second.Raw();
+        return *this;
+    }
+
     template<_Var_Ty T>
     Option<T> as(const char* c) const {
         return rt->get<T>(c);
@@ -123,17 +114,8 @@ struct sCursor {
         s.history = nullptr;
         return *this; 
     }
-    
-    sCursor& node(String c) {
-        auto it = trptr->recnode.find(c);
-        if(it==trptr->recnode.end()) {
-            throw std::runtime_error("Invalid Node");
-        }
-        trptr = it->second.Raw();
-        return *this;
-    }
 
-    sCursor& node(int c) {
+    sCursor& node(auto c) {
         auto it = trptr->recnode.find(c);
         if(it==trptr->recnode.end()) {
             throw std::runtime_error("Invalid Node");
@@ -182,16 +164,7 @@ struct RWNode{
 
     Node& Ref() { return rt.RefRaw(); }
 
-    RWNode& node(const char* c) {
-        auto it = cur->recnode.find(c);
-        if(it==cur->recnode.end()) {
-            throw std::runtime_error("Invalid Node");
-        }
-        cur = it->second.Raw();
-        return *this;
-    }
-
-    RWNode& node(int c){
+    RWNode& node(auto c){
         auto it = cur->recnode.find(c);
         if(it==cur->recnode.end()) {
             throw std::runtime_error("Invalid Node");
@@ -302,8 +275,7 @@ struct Resolver {
         return *this;
     }
     
-    RWNode& node(const char* c) { return rt.node(c); }
-    RWNode& node(int c) { return rt.node(c); }
+    RWNode& node(auto c) { return rt.node(c); }
 
     rCursor root() { return rt.root(); }
     sCursor state() { return rt.state(); }
