@@ -48,10 +48,13 @@ private:
 template<typename __Type>
 concept _Var_Ty = std::same_as<__Type,int>||std::same_as<__Type,double>||
 				std::same_as<__Type,String>||std::same_as<__Type,bool>;
+
 template<typename __Type>
 concept _Key_Ty = std::same_as<__Type,int>||std::same_as<__Type,String>;
+
 using var_tys = Variant<int, double, String, bool>;
 using key_tys = Variant<String,int>;
+
 struct Node {    
     HMap<key_tys, var_tys> mulitdict;
     HMap<key_tys, IntelliPtr<Node>> recnode;
@@ -141,7 +144,6 @@ struct sCursor {
         return *this;
     }
 
-
     sCursor(Node* b): bsptr(b), trptr(b) {}
 private:
     Node* history;
@@ -189,6 +191,73 @@ private:
     IntelliPtr<Node> rt;
     Node* cur = rt.Raw();
 };
+
+void _lua_Parse(lua_State*,Node&);
+
+struct Resolver {
+    Resolver() = default;
+    Resolver(const char* f): _N(f) { 
+        IntelliPtr<lua_State> State(luaL_newstate());
+        auto _luaL = State.Raw();
+        auto ok = luaL_dofile(_luaL,f);
+
+        if(ok!=LUA_OK || !lua_istable(_luaL,1)){
+            throw std::runtime_error("Format Error");
+        }else{
+            _lua_Parse(_luaL,rt.Ref());
+        }
+    }
+    Resolver(const Resolver&) = delete;
+    Resolver& operator=(const Resolver&) = delete;
+    Resolver(Resolver&& r) : _N(r._N), rt(std::move(r.rt)) {}
+    Resolver& operator=(Resolver&& r) noexcept {
+        if(this==&r) return *this;
+        _N = r._N;
+        rt = std::move(r.rt);
+        return *this;
+    }
+    
+    RWNode& node(auto c) { return rt.node(c); }
+    RWNode& reset() { return rt.reset(); }
+    
+    rCursor root() { return rt.root(); }
+    sCursor state() { return rt.state(); }
+
+    template<_Var_Ty T>
+    Option<T> as(auto c) { return rt.as<T>(c); }
+
+    ~Resolver(){}
+private:
+    String _N;
+    RWNode rt;
+};
+
+
+// root -> state -> default
+void testfunc() {
+    auto r = Resolver("config.lua");
+    
+    RWNode& mid = r.node("config").node("app");
+    auto mid2 = r.root().node("config").node("servers").node(1).as<String>("host");
+    std::cout<<*mid2<<std::endl;
+    std::cout<<*mid.as<String>("name")<<std::endl;
+
+    auto state = r.node("config").node("app").state();
+    r.reset();
+
+    std::cout<<*state.node("nested").as<int>("a")<<std::endl;
+    state.node("list_of_maps").update();
+    std::cout<<*state.node(1).as<String>("name")<<":"<<*state.node(2).as<String>("name")<<std::endl;
+    state.cancel();
+
+    std::cout<<*state.node("nested").node("b").as<String>("s") << std::endl;
+    state.recover();
+    
+    std::cout<<*r.node("config").as<String>("name")<<std::endl;
+    std::cout<<*r.node(1).as<int>(1)<<std::endl;
+}
+
+
 
 
 void _lua_Parse(lua_State* _luaL,Node& node) {
@@ -247,71 +316,4 @@ void _lua_Parse(lua_State* _luaL,Node& node) {
 
         lua_pop(_luaL,1);
     }
-}
-
-
-
-
-struct Resolver {
-    Resolver() = default;
-    Resolver(const char* f): _N(f) { 
-        IntelliPtr<lua_State> State(luaL_newstate());
-        auto _luaL = State.Raw();
-        auto ok = luaL_dofile(_luaL,f);
-
-        if(ok!=LUA_OK || !lua_istable(_luaL,1)){
-            throw std::runtime_error("Format Error");
-        }else{
-            _lua_Parse(_luaL,rt.Ref());
-        }
-    }
-    Resolver(const Resolver&) = delete;
-    Resolver& operator=(const Resolver&) = delete;
-    Resolver(Resolver&& r) : _N(r._N), rt(std::move(r.rt)) {}
-    Resolver& operator=(Resolver&& r) noexcept {
-        if(this==&r) return *this;
-        _N = r._N;
-        rt = std::move(r.rt);
-        return *this;
-    }
-    
-    RWNode& node(auto c) { return rt.node(c); }
-    RWNode& reset() { return rt.reset(); }
-    
-    rCursor root() { return rt.root(); }
-    sCursor state() { return rt.state(); }
-
-    template<_Var_Ty T>
-    Option<T> as(auto c) { return rt.as<T>(c); }
-
-    ~Resolver(){}
-private:
-    String _N;
-    RWNode rt;
-};
-
-
-
-// root -> state -> default
-void testfunc() {
-    auto r = Resolver("config.lua");
-    
-    RWNode& mid = r.node("config").node("app");
-    auto mid2 = r.root().node("config").node("servers").node(1).as<String>("host");
-    std::cout<<*mid2<<std::endl;
-    std::cout<<*mid.as<String>("name")<<std::endl;
-
-    auto state = r.node("config").node("app").state();
-    r.reset();
-
-    std::cout<<*state.node("nested").as<int>("a")<<std::endl;
-    state.node("list_of_maps").update();
-    std::cout<<*state.node(1).as<String>("name")<<":"<<*state.node(2).as<String>("name")<<std::endl;
-    state.cancel();
-
-    std::cout<<*state.node("nested").node("b").as<String>("s") << std::endl;
-    state.recover();
-    
-    std::cout<<*r.node("config").as<String>("name")<<std::endl;
-    std::cout<<*r.node(1).as<int>(1)<<std::endl;
 }
