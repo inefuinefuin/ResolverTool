@@ -103,8 +103,6 @@ template<>
 struct IntelliPtr<void>{
     IntelliPtr() = default;
 
-    explicit IntelliPtr(void* v) : rawptr(v) {}
-
     IntelliPtr(const IntelliPtr&) = delete;
     IntelliPtr& operator=(const IntelliPtr&) = delete;
     IntelliPtr(IntelliPtr&& IntelliPtr) : rawptr(IntelliPtr.rawptr) { IntelliPtr.rawptr = nullptr; }

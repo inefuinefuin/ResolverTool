@@ -22,8 +22,6 @@ template<>
 struct IntelliPtr<lua_State> {
     IntelliPtr() = default;
 
-    explicit IntelliPtr(lua_State* t) : rawptr(t) {}
-
     IntelliPtr(const IntelliPtr&) = delete;
     IntelliPtr& operator=(const IntelliPtr&) = delete;
     IntelliPtr(IntelliPtr&& IntelliPtr) : rawptr(IntelliPtr.rawptr) { IntelliPtr.rawptr = nullptr; }
@@ -41,7 +39,7 @@ struct IntelliPtr<lua_State> {
         if (rawptr) lua_close(rawptr);
     }
 private:
-    lua_State* rawptr = nullptr;
+    lua_State* rawptr = luaL_newstate();
 };
 
 
@@ -197,7 +195,7 @@ void _lua_Parse(lua_State*,Node&);
 struct Resolver {
     Resolver() = default;
     Resolver(const char* f): _N(f) { 
-        IntelliPtr<lua_State> State(luaL_newstate());
+        IntelliPtr<lua_State> State;
         auto _luaL = State.Raw();
         auto ok = luaL_dofile(_luaL,f);
 
