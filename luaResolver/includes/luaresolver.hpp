@@ -264,50 +264,35 @@ void _lua_Parse(lua_State* _luaL,Node& node) {
     while(lua_next(_luaL,offset)){
 
         var_tys c; key_tys _cat;
+
+        auto func = [&](key_tys _cat) {
+            if (lua_isinteger(_luaL, -1)) {
+                node.mulitdict[_cat] = (int)lua_tointeger(_luaL, -1);
+            }
+            else if (lua_isnumber(_luaL, -1)) {
+                node.mulitdict[_cat] = (double)lua_tonumber(_luaL, -1);
+            }
+            else if (lua_isboolean(_luaL, -1)) {
+                node.mulitdict[_cat] = (bool)lua_toboolean(_luaL, -1);
+            }
+            else if (lua_isstring(_luaL, -1)) {
+                node.mulitdict[_cat] = String(lua_tostring(_luaL, -1));
+            }
+            else if (lua_istable(_luaL, -1)) {
+                node.recnode.insert({ _cat,IntelliPtr<Node>() });
+                _lua_Parse(_luaL, node.recnode[_cat].RefRaw());
+            }
+            else {
+                throw std::runtime_error("Type Error");
+            }
+        };
+
         if(lua_isinteger(_luaL,-2)){
             _cat = (int)lua_tointeger(_luaL,-2);
-
-            if(lua_isinteger(_luaL,-1)){
-                c = (int)lua_tointeger(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isnumber(_luaL,-1)){
-                c = (double)lua_tonumber(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isboolean(_luaL,-1)){
-                c = (bool)lua_toboolean(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isstring(_luaL,-1)){
-                c = String(lua_tostring(_luaL,-1));
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_istable(_luaL,-1)){
-                node.recnode.insert({_cat,IntelliPtr<Node>()});
-                _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
-            }else{
-                throw std::runtime_error("Type Error");
-            }
-
+            func(_cat);
         }else if(lua_isstring(_luaL,-2)){
-            _cat = lua_tostring(_luaL,-2);
-
-            if(lua_isinteger(_luaL,-1)){
-                c = (int)lua_tointeger(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isnumber(_luaL,-1)){
-                c = (double)lua_tonumber(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isboolean(_luaL,-1)){
-                c = (bool)lua_toboolean(_luaL,-1);
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_isstring(_luaL,-1)){
-                c = String(lua_tostring(_luaL,-1));
-                node.mulitdict.insert({_cat,c});
-            }else if(lua_istable(_luaL,-1)){
-                node.recnode.insert({_cat,IntelliPtr<Node>()});
-                _lua_Parse(_luaL,node.recnode[_cat].RefRaw());
-            }else {
-                throw std::runtime_error("Type Error");
-            }
-            
+            _cat = lua_tostring(_luaL, -2);
+            func(_cat);
         }else {
             throw std::runtime_error("Type Error");
         }
